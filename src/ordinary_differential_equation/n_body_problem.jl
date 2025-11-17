@@ -1,5 +1,7 @@
-using Plots
-gr()
+using PythonPlot
+using PythonCall
+using Printf
+using Statistics
 
 # --------------------
 # 1. ヘルパー関数
@@ -162,62 +164,152 @@ end
 
 
 # --------------------
-# 4. アニメーションの作成
+# 3.5. 全運動範囲の計算
 # --------------------
 
-# プロットの初期設定
-# x, y 軸の表示範囲を固定することで、粒子が画面外に出るのを防ぎ、見やすくします。
-# 粒子の初期位置から大まかな範囲を設定。必要に応じて調整してください。
-# 例: x_min = -15.0, x_max = 15.0, y_min = -15.0, y_max = 15.0
-x_coords = history[:, :, 1] # 全ステップの全粒子のX座標
-y_coords = history[:, :, 2] # 全ステップの全粒子のY座標
+# 全x座標の最小値と最大値
+x_min_all = minimum(history[:, :, 1])
+x_max_all = maximum(history[:, :, 1])
 
-# プロット範囲を自動的に調整する代わりに、固定することもできます
-plot_xlim = (minimum(x_coords) - 5, maximum(x_coords) + 5)
-plot_ylim = (minimum(y_coords) - 5, maximum(y_coords) + 5)
+# 全y座標の最小値と最大値
+y_min_all = minimum(history[:, :, 2])
+y_max_all = maximum(history[:, :, 2])
 
-const PLOT_SKIP = 100 # 100ステップごとに1回プロット (10,000/100 = 100フレームに削減)
+# xとyの最大変動幅
+range_x = x_max_all - x_min_all
+range_y = y_max_all - y_min_all
 
-# アニメーションオブジェクトの初期化
-anim = @animate for i in 1:PLOT_SKIP:N_steps
-    # 現在の時刻 t とステップ i のデータを取得
-    current_time = t_list[i]
-    current_positions = history[i, :, 1:2] # 現在ステップの全粒子の (x, y)
+# アスペクト比1:1を維持し、かつ全体が収まるように調整
+max_range = max(range_x, range_y)
 
-    # 粒子の位置 (x_i, y_i) を取得
-    x = current_positions[:, 1]
-    y = current_positions[:, 2]
+# センタリング
+center_x = (x_min_all + x_max_all) / 2
+center_y = (y_min_all + y_max_all) / 2
 
-    # プロット
-    plot(x, y,
-         seriestype = :scatter, # 散布図としてプロット
-         markercolor = [:red, :blue, :green], # 粒子ごとに色を割り当てる (N_body の数に合わせる)
-         markersize = masses ./ maximum(masses) .* 8 .+ 2, # 質量に応じてマーカーサイズを調整
-         legend = false, # 凡例は表示しない
-         xlims = plot_xlim, # x軸の範囲を固定
-         ylims = plot_ylim, # y軸の範囲を固定
-         aspect_ratio = :equal, # アスペクト比を1:1に固定して、歪みをなくす
-         title = "N-Body Simulation (t = $(round(current_time, digits=2)))", # タイトルに現在の時刻を表示
-         xlabel = "X Position",
-         ylabel = "Y Position"
-        )
+# 新しい固定表示範囲 (余白として 10% を追加)
+padding = max_range * 0.1 / 2.0 
+fixed_lim = (max_range / 2.0) + padding 
+
+const X_LIM = (center_x - fixed_lim, center_x + fixed_lim)
+const Y_LIM = (center_y - fixed_lim, center_y + fixed_lim)
+
+# --------------------
+# 4. アニメーション出力
+# -------------------- 
+
+# PythonPlotのpyplotとanimationモジュールを取得
+pygui(true) # GUIバックエンドを有効に
+const plt = pyimport("matplotlib.pyplot")
+const animation = pyimport("matplotlib.animation")
+
+# --- アニメーション設定 ---
+const INTERVAL = 10 
+const SKIP_FRAMES = 10 # 描画フレーム数 = N_steps / 1000
+const TRAIL_LENGTH = N_steps # 軌跡として表示する過去のステップ数
+const N_frames = floor(Int, N_steps / SKIP_FRAMES)
+const COLORS = ["b", "r", "g"]
+
+# --- プロットの初期化 ---
+fig, ax = plt.subplots(figsize=(8, 8)) 
+ax.set_title("N-Body Simulation (RK4)")
+ax.set_xlabel("x")
+ax.set_ylabel("y")
+# 軸の範囲を固定値に設定
+ax.set_xlim(X_LIM[1], X_LIM[2]) 
+ax.set_ylim(Y_LIM[1], Y_LIM[2]) 
+ax.set_aspect("equal") 
+ax.grid(true)
+
+# 粒子本体 (Marker) のプロットオブジェクトを初期化
+plot_objects = []
+# 軌跡 (Trail) のプロットオブジェクトを初期化
+trail_objects = []
+
+for i in 1:N_body
+    marker_size = 1 + sqrt(masses[i])
+    current_color = COLORS[i]
     
-    # オプション: 軌跡を表示する場合（全ての粒子）
-    # for p_idx in 1:N_body
-    #     # history[1:i, p_idx, 1] は、開始から 'i' ステップ目までの粒子のX座標
-    #     plot!(history[1:i, p_idx, 1], history[1:i, p_idx, 2], 
-    #           linecolor = [:red, :blue, :green][p_idx], 
-    #           linewidth = 0.5, 
-    #           alpha = 0.7,
-    #           seriestype = :path, 
-    #           legend = false)
-    # end
+    # 粒子本体 (点)
+    line, = ax.plot(
+        [], [], "o", 
+        color=current_color,
+        ms=marker_size, 
+        zorder=5, 
+        label="Mass $(i): $(masses[i])"
+    )    
+    push!(plot_objects, line)
+
+    # 軌跡 (線)
+    trail, = ax.plot(
+        [], [], "-", 
+        color=current_color,
+        alpha=0.5, 
+        lw=1.5, 
+        zorder=0
+    )
+    push!(trail_objects, trail)
 end
 
-# display(anim)
+ax.legend(loc="upper right")
 
-# アニメーションをGIFファイルとして保存
-# fps (frames per second) はフレームレート
-gif(anim, "nbody_simulation.gif", fps = 30)
+# 現在の時間を表示するためのテキストオブジェクト
+time_text = ax.text(0.02, 0.95, "", transform=ax.transAxes)
 
-println("アニメーション 'nbody_simulation.gif' が作成されました。")
+# すべての描画オブジェクトを一つの配列にまとめる
+all_artists = vcat(plot_objects, trail_objects, [time_text])
+
+
+# --- 初期化関数 (init_func) ---
+function init_func()
+    for line in plot_objects
+        line.set_data([], [])
+    end
+    for trail in trail_objects
+        trail.set_data([], [])
+    end
+    time_text.set_text("")
+    return (all_artists...,)
+end
+
+
+# --- フレーム描画関数 (update_func) ---
+function update_func(frame_index)
+    current_step = frame_index * SKIP_FRAMES + 1
+    start_step = max(1, current_step - TRAIL_LENGTH) 
+
+    # 各粒子について位置を更新
+    for i in 1:N_body
+        # 1. 粒子本体の位置更新
+        x_pos = history[current_step, i, 1]
+        y_pos = history[current_step, i, 2]
+        plot_objects[i].set_data([x_pos], [y_pos])
+        
+        # 2. 軌跡データの取得と更新
+        x_trail = history[start_step:current_step, i, 1]
+        y_trail = history[start_step:current_step, i, 2]
+        trail_objects[i].set_data(x_trail, y_trail)
+    end
+    
+    # 時間表示を更新
+    current_time = t_list[current_step]
+    time_text.set_text(@sprintf("Time = %.2f", current_time))
+
+    # 更新されたオブジェクトをすべて返す
+    return (all_artists...,)
+end
+
+
+# --- アニメーションの生成と表示 ---
+
+# FuncAnimationオブジェクトを作成
+anim = animation.FuncAnimation(
+    fig,
+    update_func,
+    init_func=init_func,
+    frames=N_frames,
+    interval=INTERVAL,
+    blit=true, # 軸が固定のため、blit=trueで高速化
+    repeat=false
+)
+
+plt.show()
