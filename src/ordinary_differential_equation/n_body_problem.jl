@@ -108,3 +108,51 @@ function runge_kutta_step(del_t, masses, current_state)
 
     return next_state
 end
+
+
+# --------------------
+# 3. シミュレーション設定と実行
+# --------------------
+
+# 時間設定
+const t_0:: Float64 = 0.0
+const t_f:: Float64 = 100.0
+const del_t:: Float64 = 1e-2
+const N_steps:: Int = round((t_f - t_0) / del_t)
+
+# 粒子設定 (N_body)
+const N_body:: Int = 3  # 粒子の数
+
+# 質量 (np.ndarray)
+masses = [100.0, 150.0, 100.0]
+
+# 初期条件 (N_body, 4) の配列として定義: (x, y, vx, vy)
+initial_conditions = zeros(N_body, 4)
+
+# 粒子1 (x, y, vx, vy)
+initial_conditions[1, :] .= [-10.0, 0.0, 0.5, 4.0]
+# 粒子2 (x, y, vx, vy)
+initial_conditions[2, :] .= [0.0, 0.0, 0.0, 0.0]
+# 粒子3 (x, y, vx, vy)
+initial_conditions[3, :] .= [10.0, 0.0, -0.5, -3.99]
+
+# 結果格納用の配列 (N_steps, N_body, 4)
+# (時間ステップ, 粒子番号, 状態変数(x, y, vx, vy))
+history = zeros(N_steps, N_body, 4)
+history[1, :, :] = initial_conditions
+
+# 現在の状態変数 (N_body, 4)
+current_state = copy(initial_conditions)
+
+# シミュレーション実行
+t_list = zeros(N_steps)
+t_list[1] = t_0
+
+for i in 1:(N_steps - 1)
+    # RK4 ステップの実行
+    current_state = runge_kutta_step(del_t, masses, current_state)
+
+    # 結果の格納
+    history[i+1, :, :] = current_state
+    t_list[i+1] = t_list[i] + del_t
+end
