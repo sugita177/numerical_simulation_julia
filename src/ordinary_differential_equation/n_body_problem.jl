@@ -53,3 +53,58 @@ function calculate_acceleration(masses, positions)
     end
     return accelerations
 end
+
+
+# --------------------
+# 2. ルンゲ・クッタ (RK4) のステップ関数
+# --------------------
+
+# 状態ベクトルの導関数 f(y) = (v, a) の計算
+function derivative(pos, vel, masses)
+    # pos: (N_body, 2), vel: (N_body, 2)
+    accelerations = calculate_acceleration(masses, pos)  # (N_body, 2)
+    # 導関数 (dy/dt) は (d_pos/dt, d_vel/dt) = (vel, accel)
+    # np.hstack で (N_body, 4) に結合
+    return hcat(vel, accelerations)
+end
+
+function runge_kutta_step(del_t, masses, current_state)
+    """
+    ルンゲ・クッタ法（4次）で1ステップ時間の積分を行う。
+
+    Args:
+        del_t (float): タイムステップ Delta t
+        masses (array): 粒子の質量 (N_body,)
+        current_state (array): 現在の状態変数 (N_body, 4) (x, y, vx, vy)
+
+    Returns:
+        array: 次の時間の状態変数 (N_body, 4)
+    """
+    # 状態変数の分解
+    positions = current_state[:, 1:2]  # (x, y)
+    velocities = current_state[:, 3:4]  # (vx, vy)
+
+    # K1
+    deriv1 = derivative(positions, velocities, masses)
+    k1 = del_t * deriv1
+
+    # K2
+    state2 = current_state .+ k1 / 2.0
+    deriv2 = derivative(state2[:, 1:2], state2[:, 3:4], masses)
+    k2 = del_t * deriv2
+
+    # K3
+    state3 = current_state .+ k2 / 2.0
+    deriv3 = derivative(state3[:, 1:2], state3[:, 3:4], masses)
+    k3 = del_t * deriv3
+
+    # K4
+    state4 = current_state .+ k3
+    deriv4 = derivative(state4[:, 1:2], state4[:, 3:4], masses)
+    k4 = del_t * deriv4
+
+    # 次の状態を計算
+    next_state = current_state .+ (k1 + 2.0 * k2 + 2.0 * k3 + k4) / 6.0
+
+    return next_state
+end
