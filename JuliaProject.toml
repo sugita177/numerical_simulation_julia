@@ -1,5 +1,10 @@
 version = "1.10.0"
 
 [deps]
+CondaPkg = "992eb4ea-22a4-4c89-a5bb-47a3300528ab"
+LinearAlgebra = "37e2e46d-f89d-539d-b4ee-838fcccc9c8e"
 PackageCompiler = "9b87118b-4619-50d2-8e1e-99f35a4d4d9d"
 Plots = "91a5bcdd-55d7-5caf-9e0b-520d859cae80"
+PythonCall = "6099a3de-0909-46bc-b1f4-468b9a2dfc0d"
+PythonPlot = "274fc56d-3b97-40fa-a1cd-1b4a50311bf9"
+Statistics = "10745b16-79ce-11e8-11f9-7d13ad32a3b2"
