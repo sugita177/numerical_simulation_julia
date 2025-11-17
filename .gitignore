@@ -8,6 +8,19 @@
 # Manifest.toml は通常、特定の環境の再現性を保証するためにGit管理下に置くことが推奨されます。
 # /Manifest.toml 
 
+# CondaPkg 環境ディレクトリ
+# 環境固有のバイナリやキャッシュが含まれ、サイズが大きいため除外します。
+.CondaPkg/
+
+# Pkg のビルドディレクトリやキャッシュ
+# 環境構築中に生成される一時ファイルで、通常は除外します。
+.julia/compiled/
+.julia/scratchspaces/
+
+# Julia Package Extensions (例: Requires.jlのビルドファイル)
+# 環境依存のため除外します。
+/extensions
+
 # 一時的なビルドファイルやキャッシュ
 /deps
 /artifacts
@@ -42,6 +55,10 @@
 \#*
 .orig
 *.swp
+
+# Jupyter/IJulia の一時ファイル
+.ipynb_checkpoints/
+*.ipynb-session
 
 #--------------------------------------
 # 4. OSの一時ファイル
