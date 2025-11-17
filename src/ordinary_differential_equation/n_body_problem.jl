@@ -1,4 +1,5 @@
 using Plots
+gr()
 
 # --------------------
 # 1. ヘルパー関数
@@ -150,9 +151,73 @@ t_list[1] = t_0
 
 for i in 1:(N_steps - 1)
     # RK4 ステップの実行
-    current_state = runge_kutta_step(del_t, masses, current_state)
+    global current_state = runge_kutta_step(del_t, masses, current_state)
 
     # 結果の格納
     history[i+1, :, :] = current_state
     t_list[i+1] = t_list[i] + del_t
+
+    println("$(i)ステップが実行されました。")
 end
+
+
+# --------------------
+# 4. アニメーションの作成
+# --------------------
+
+# プロットの初期設定
+# x, y 軸の表示範囲を固定することで、粒子が画面外に出るのを防ぎ、見やすくします。
+# 粒子の初期位置から大まかな範囲を設定。必要に応じて調整してください。
+# 例: x_min = -15.0, x_max = 15.0, y_min = -15.0, y_max = 15.0
+x_coords = history[:, :, 1] # 全ステップの全粒子のX座標
+y_coords = history[:, :, 2] # 全ステップの全粒子のY座標
+
+# プロット範囲を自動的に調整する代わりに、固定することもできます
+plot_xlim = (minimum(x_coords) - 5, maximum(x_coords) + 5)
+plot_ylim = (minimum(y_coords) - 5, maximum(y_coords) + 5)
+
+const PLOT_SKIP = 100 # 100ステップごとに1回プロット (10,000/100 = 100フレームに削減)
+
+# アニメーションオブジェクトの初期化
+anim = @animate for i in 1:PLOT_SKIP:N_steps
+    # 現在の時刻 t とステップ i のデータを取得
+    current_time = t_list[i]
+    current_positions = history[i, :, 1:2] # 現在ステップの全粒子の (x, y)
+
+    # 粒子の位置 (x_i, y_i) を取得
+    x = current_positions[:, 1]
+    y = current_positions[:, 2]
+
+    # プロット
+    plot(x, y,
+         seriestype = :scatter, # 散布図としてプロット
+         markercolor = [:red, :blue, :green], # 粒子ごとに色を割り当てる (N_body の数に合わせる)
+         markersize = masses ./ maximum(masses) .* 8 .+ 2, # 質量に応じてマーカーサイズを調整
+         legend = false, # 凡例は表示しない
+         xlims = plot_xlim, # x軸の範囲を固定
+         ylims = plot_ylim, # y軸の範囲を固定
+         aspect_ratio = :equal, # アスペクト比を1:1に固定して、歪みをなくす
+         title = "N-Body Simulation (t = $(round(current_time, digits=2)))", # タイトルに現在の時刻を表示
+         xlabel = "X Position",
+         ylabel = "Y Position"
+        )
+    
+    # オプション: 軌跡を表示する場合（全ての粒子）
+    # for p_idx in 1:N_body
+    #     # history[1:i, p_idx, 1] は、開始から 'i' ステップ目までの粒子のX座標
+    #     plot!(history[1:i, p_idx, 1], history[1:i, p_idx, 2], 
+    #           linecolor = [:red, :blue, :green][p_idx], 
+    #           linewidth = 0.5, 
+    #           alpha = 0.7,
+    #           seriestype = :path, 
+    #           legend = false)
+    # end
+end
+
+# display(anim)
+
+# アニメーションをGIFファイルとして保存
+# fps (frames per second) はフレームレート
+gif(anim, "nbody_simulation.gif", fps = 30)
+
+println("アニメーション 'nbody_simulation.gif' が作成されました。")
